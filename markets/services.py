@@ -22,8 +22,8 @@ class MarketDataService:
             decode_responses=True
         )
         self.price_history = PriceHistory()
-        # Create trading pairs by adding suffix
         self.supported_pairs = {f"{asset}_CAD" for asset in settings.SUPPORTED_ASSETS}
+        self.pubsub = self.redis.pubsub()  # Add Redis pubsub
         logger.info(f"MarketDataService initialized with {len(self.supported_pairs)} supported pairs")
 
     async def get_session(self) -> aiohttp.ClientSession:
@@ -147,8 +147,42 @@ class MarketDataService:
         logger.debug(f"Formatted response with {len(market_data)} symbols")
         return response
 
+    async def subscribe_to_market_updates(self):
+        """Subscribe to market updates channel"""
+        try:
+            await self.pubsub.subscribe('market_rates')
+            logger.info("Successfully subscribed to market_rates channel")
+        except Exception as e:
+            logger.error(f"Error subscribing to market rates: {str(e)}")
+
+    async def listen_for_updates(self):
+        """Listen for messages on subscribed channels"""
+        try:
+            while True:
+                message = await self.pubsub.get_message(ignore_subscribe_messages=True)
+                if message:
+                    logger.debug(f"Received message: {message}")
+                    # Process message here
+                await asyncio.sleep(0.1)  # Prevent busy waiting
+        except Exception as e:
+            logger.error(f"Error in message listener: {str(e)}")
+
+    async def publish_market_data(self, data: dict):
+        """Publish market data to Redis channel"""
+        try:
+            # Cache the data
+            await self.redis.setex('market_data_cache', 60, json.dumps(data))  # Cache for 60 seconds
+            
+            # Publish to channel
+            subscribers = await self.redis.publish('market_rates', json.dumps(data))
+            logger.info(f"Published market data to {subscribers} subscribers")
+            return subscribers
+        except Exception as e:
+            logger.error(f"Error publishing market data: {str(e)}")
+            return 0
+
     async def fetch_and_publish_market_data(self):
-        """Fetch market data and publish to Redis"""
+        """Main loop to fetch and publish market data"""
         logger.info("Starting market data publisher service")
         publish_count = 0
         
@@ -165,15 +199,14 @@ class MarketDataService:
                     logger.debug(f"Formatted market data with {len(market_data)} pairs")
                     response = self.get_formatted_response(market_data)
                     
-                    # Cache and publish
-                    await self.redis.setex('market_data_cache', 1, json.dumps(response))
-                    publish_result = await self.redis.publish('market_rates', json.dumps(response))
+                    # Publish data
+                    subscribers = await self.publish_market_data(response)
                     publish_count += 1
-                    logger.info(f"Published update #{publish_count} to {publish_result} subscribers")
+                    logger.info(f"Published update #{publish_count} to {subscribers} subscribers")
                 else:
                     logger.warning("No data received from Newton API")
                 
-                await asyncio.sleep(1)
+                await asyncio.sleep(1)  # Wait before next fetch
                 
             except Exception as e:
                 logger.error("Error in fetch and publish cycle")
@@ -184,6 +217,7 @@ class MarketDataService:
         """Close all connections"""
         if self.session and not self.session.closed:
             await self.session.close()
+        await self.pubsub.unsubscribe()  # Unsubscribe from channels
         await self.redis.close()
         await self.price_history.close()
 
