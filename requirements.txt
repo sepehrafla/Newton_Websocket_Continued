@@ -1,10 +1,10 @@
 # Django and Channels
-Django>=4.2.0,<5.0
+Django>=4.2.0
 channels>=4.0.0
 channels-redis>=4.1.0
 
 # Redis
-redis>=4.5.0
+redis>=5.0.0
 
 # Async HTTP
 aiohttp>=3.8.0

@@ -127,13 +127,14 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Add these to your settings.py
-REDIS_HOST = '127.0.0.1'
+REDIS_HOST = 'localhost'
 REDIS_PORT = 6379
 REDIS_DB = 0
 
 # Newton API settings
 NEWTON_API_URL = 'https://api.newton.co/markets/v1.1/rates'
 
+# Define base assets as a list
 SUPPORTED_ASSETS = [
     "BTC", "ETH", "LTC", "XRP", "BCH", "USDC", "XMR", "XLM",
     "USDT", "QCAD", "DOGE", "LINK", "MATIC", "UNI", "COMP", "AAVE", "DAI",
@@ -145,6 +146,9 @@ SUPPORTED_ASSETS = [
     "DYDX", "CELO", "STORJ", "SKL", "CTSI", "BAND", "ENS", "RNDR", "MASK",
     "APE"
 ]
+
+# Add a suffix configuration for pairs
+PAIR_SUFFIX = "CAD"
 
 # Testing settings
 CHANNEL_LAYERS = {
